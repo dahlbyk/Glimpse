@@ -48,11 +48,16 @@ namespace Glimpse.AspNet
         private static HttpContextBase GetOrCaptureLogicalContext()
         {
             if (HttpContext.Current == null)
-                return CallContext.LogicalGetData("Glimpse.HttpContext") as HttpContextBase;
-
-            var wrapper = new HttpContextWrapper(HttpContext.Current);
-            CallContext.LogicalSetData("Glimpse.HttpContext", wrapper);
-            return wrapper;
+            {
+                var wrapper = CallContext.LogicalGetData("Glimpse.HttpContext") as SerializableHttpContextWrapper;
+                return wrapper == null ? null : wrapper.Context;
+            }
+            else
+            {
+                var wrapper = new SerializableHttpContextWrapper();
+                CallContext.LogicalSetData("Glimpse.HttpContext", wrapper);
+                return wrapper.Context;
+            }
         }
 
         private ILogger Logger { get; set; }
@@ -132,6 +137,26 @@ namespace Glimpse.AspNet
             {
                 Logger.Error("Exception writing Http response.", exception);
             }
+        }
+    }
+
+    [Serializable]
+    public class SerializableHttpContextWrapper
+    {
+        [NonSerialized]
+        private HttpContextBase current;
+
+        public SerializableHttpContextWrapper()
+        {
+            if (Context == null)
+            {
+                throw new InvalidOperationException("Missing HttpContext");
+            }
+        }
+
+        public HttpContextBase Context
+        {
+            get { return current ?? (current = new HttpContextWrapper(HttpContext.Current)); }
         }
     }
 }
